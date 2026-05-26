@@ -1,0 +1,76 @@
+version: '3'
+
+vars:
+  IAC_DIR: iac
+  SSH_KEY: ~/.ssh/cloud-1
+
+tasks:
+  default:
+    desc: Deploy infrastructure and configure the application
+    cmds:
+      - task: up
+
+  up:
+    desc: Deploy infrastructure and run Ansible end-to-end
+    cmds:
+      - task: deploy
+      - task: configure
+
+  deploy:
+    desc: Initialize and apply Terraform
+    dir: '{{.IAC_DIR}}'
+    cmds:
+      - terraform init -input=false
+      - terraform apply -auto-approve
+
+  configure:
+    desc: Run the CaC playbook from the master instance
+    dir: '{{.IAC_DIR}}'
+    cmds:
+      - test -f ../cac/group_vars/secrets.yml
+      - ssh -o StrictHostKeyChecking=no -i {{.SSH_KEY}} ubuntu@$(terraform output -raw master_ip) 'cd /home/ubuntu/cloud-1 && git pull --ff-only && mkdir -p cac/group_vars'
+      - scp -o StrictHostKeyChecking=no -i {{.SSH_KEY}} ../cac/group_vars/secrets.yml ubuntu@$(terraform output -raw master_ip):/home/ubuntu/cloud-1/cac/group_vars/secrets.yml
+      - ssh -o StrictHostKeyChecking=no -i {{.SSH_KEY}} ubuntu@$(terraform output -raw master_ip) 'cd /home/ubuntu/cloud-1/cac && make all'
+
+  destroy:
+    desc: Destroy Terraform-managed infrastructure
+    dir: '{{.IAC_DIR}}'
+    cmds:
+      - terraform destroy -auto-approve
+
+  master:
+    desc: SSH into the master instance
+    dir: '{{.IAC_DIR}}'
+    cmds:
+      - ssh -i {{.SSH_KEY}} ubuntu@$(terraform output -raw master_ip)
+
+  worker:
+    desc: SSH into the worker instance
+    dir: '{{.IAC_DIR}}'
+    cmds:
+      - ssh -i {{.SSH_KEY}} ubuntu@$(terraform output -raw worker_ip)
+
+  master-reboot:
+    desc: Reboot the master instance over SSH
+    dir: '{{.IAC_DIR}}'
+    cmds:
+      - ssh -o StrictHostKeyChecking=no -i {{.SSH_KEY}} ubuntu@$(terraform output -raw master_ip) 'sudo reboot' || true
+
+  worker-reboot:
+    desc: Reboot the worker instance over SSH
+    dir: '{{.IAC_DIR}}'
+    cmds:
+      - ssh -o StrictHostKeyChecking=no -i {{.SSH_KEY}} ubuntu@$(terraform output -raw worker_ip) 'sudo reboot' || true
+
+  fclean:
+    desc: Destroy infrastructure and remove Terraform cache
+    cmds:
+      - task: destroy
+      - cmd: rm -rf .terraform
+        dir: '{{.IAC_DIR}}'
+
+  re:
+    desc: Recreate infrastructure from scratch
+    cmds:
+      - task: fclean
+      - task: up

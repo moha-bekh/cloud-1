@@ -1,0 +1,25 @@
+# macOS
+.DS_Store
+
+# Ansible local cache
+.ansible/
+*.retry
+
+# Python/runtime cache
+__pycache__/
+*.py[cod]
+
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+group_vars/secrets.yml
+roles/worker/files/inception/secrets/*
+!roles/worker/files/inception/secrets/.gitkeep
+!roles/worker/files/inception/secrets/*.example
+
+# Logs and temporary files
+*.log
+tmp/
+temp/
+_tmp_/

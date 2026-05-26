@@ -1,0 +1,18 @@
+---
+- name: Cloud-1 CaC
+  hosts: worker
+  become: true
+
+  pre_tasks:
+    - name: Load local secrets
+      ansible.builtin.include_vars:
+        file: "{{ playbook_dir }}/group_vars/secrets.yml"
+      no_log: true
+
+    - name: Run pre_tasks
+      include_tasks: "{{ item }}"
+      loop:
+        - pre_tasks/sys/update.yml
+
+  roles:
+    - worker

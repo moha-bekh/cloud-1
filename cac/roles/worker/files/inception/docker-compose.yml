@@ -1,0 +1,150 @@
+services:
+  mariadb:
+    image: mariadb
+    container_name: mariadb
+    build:
+      context: services/mariadb
+      args:
+        PKGS: mariadb-server
+    restart: unless-stopped
+    volumes:
+      - ${VOL_DIR}/mariadb:/var/lib/mysql
+    networks:
+      - backend
+    environment:
+      - DB_NAME=${DB_NAME}
+      - USER_NAME=${USER_NAME}
+    secrets:
+      - root_pass
+      - user_pass
+    entrypoint:
+      - /docker-entrypoint-initdb.d/init.sh
+    healthcheck:
+      test:
+        - CMD
+        - mysqladmin
+        - ping
+        - --silent
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  wordpress:
+    image: wordpress
+    container_name: wordpress
+    build:
+      context: services/wordpress
+      args:
+        PKGS:
+          curl mariadb-client php8.2 php8.2-mysql php8.2-fpm php8.2-curl php8.2-gd
+          php8.2-mbstring php8.2-xml php8.2-zip ca-certificates
+    restart: unless-stopped
+    volumes:
+      - ${VOL_DIR}/wordpress:/var/www/html
+    networks:
+      - backend
+    depends_on:
+      mariadb:
+        condition: service_healthy
+    environment:
+      - USER_NAME=${USER_NAME}
+      - DB_NAME=${DB_NAME}
+      - DB_HOST=${DB_HOST}
+      - WP_LOCALE=${WP_LOCALE}
+      - WP_ROOT=${WP_ROOT}
+      - WP_URL=${WP_URL}
+      - WP_TITLE=${WP_TITLE}
+      - WP_EMAIL=${WP_EMAIL}
+      - WP_THEME=${WP_THEME}
+      - IP_ADDR=${IP_ADDR}
+    secrets:
+      - user_pass
+    entrypoint:
+      - /docker-entrypoint-initdb.d/init.sh
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pgrep php-fpm8.2 > /dev/null || exit 1
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  phpmyadmin:
+    image: phpmyadmin
+    container_name: phpmyadmin
+    build:
+      context: services/phpmyadmin
+      args:
+        PKGS: phpmyadmin php8.2-fpm php8.2-mysql openssl
+    restart: unless-stopped
+    volumes:
+      - ${VOL_DIR}/phpmyadmin:/var/www/phpmyadmin
+    networks:
+      - backend
+    depends_on:
+      mariadb:
+        condition: service_healthy
+    environment:
+      - PMA_HOST=mariadb
+      - PMA_PORT=3306
+    entrypoint:
+      - /docker-entrypoint-initdb.d/init.sh
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pgrep php-fpm8.2 > /dev/null || exit 1
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  nginx:
+    image: nginx
+    container_name: nginx
+    build:
+      context: services/nginx
+      args:
+        PKGS: nginx openssl ca-certificates curl
+    restart: unless-stopped
+    ports:
+      - 443:443
+    volumes:
+      - ${VOL_DIR}/nginx/conf.d:/etc/nginx/conf.d
+      - ${VOL_DIR}/nginx/log:/var/log/nginx
+      - ${VOL_DIR}/wordpress:/var/www/html:ro
+      - ${VOL_DIR}/phpmyadmin:/usr/share/phpmyadmin:ro
+    networks:
+      - backend
+      - frontend
+    depends_on:
+      wordpress:
+        condition: service_healthy
+      phpmyadmin:
+        condition: service_healthy
+    secrets:
+      - ssl_key
+      - ssl_cert
+    entrypoint:
+      - /docker-entrypoint-initdb.d/init.sh
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - "curl -k -f https://localhost >/dev/null"
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+networks:
+  backend:
+    driver: bridge
+  frontend:
+    driver: bridge
+
+secrets:
+  root_pass:
+    file: secrets/root_pass
+  user_pass:
+    file: secrets/user_pass
+  ssl_key:
+    file: secrets/ssl.key
+  ssl_cert:
+    file: secrets/ssl.crt

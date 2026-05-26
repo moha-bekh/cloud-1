@@ -1,0 +1,8 @@
+default_roles:
+  - worker
+
+pre_tasks_roles:
+  - sys
+
+db_host: "{{ ansible_host | default(inventory_hostname) }}"
+db_name: cloud-1-db

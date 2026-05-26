@@ -1,0 +1,201 @@
+- name: "Install required packages"
+  become: true
+  ansible.builtin.apt:
+    name:
+      - git
+      - curl
+      - wget
+      - vim
+      - unzip
+      - docker.io
+      - docker-compose
+    state: present
+    update_cache: yes
+
+
+
+
+- name: "Ensure docker group exists"
+  become: true
+  ansible.builtin.group:
+    name: docker
+    state: present
+
+- name: "Add ubuntu to docker group"
+  become: true
+  ansible.builtin.user:
+    name: ubuntu
+    groups: docker
+    append: yes
+  when: not ansible_check_mode
+
+- name: "Ensure Docker service is running"
+  become: true
+  ansible.builtin.service:
+    name: docker
+    state: started
+    enabled: yes
+  register: docker_service
+  failed_when: docker_service is failed and "'Could not find the requested service' not in (docker_service.msg | default(''))"
+  when: not ansible_check_mode
+
+
+- name: "Ensure required directories exist"
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: '0755'
+    owner: ubuntu
+    group: ubuntu
+  loop:
+    - "/home/ubuntu/inception/"
+  when: not ansible_check_mode
+
+- name: "Copy inception files"
+  ansible.builtin.copy:
+    src: "{{ role_path }}/files/{{ item.src }}"
+    dest: "{{ item.dest }}"
+    mode: "{{ item.mode | default('0644') }}"
+    owner: ubuntu
+    group: ubuntu
+  loop:
+    - { src: "inception/", dest: "/home/ubuntu/inception/" }
+  when: not ansible_check_mode
+
+- name: "Set inception environment"
+  ansible.builtin.template:
+    src: "{{ role_path }}/templates/env.j2"
+    dest: "/home/ubuntu/inception/.env"
+    owner: ubuntu
+    group: ubuntu
+    mode: '0644'
+  when: not ansible_check_mode
+
+- name: "Ensure inception secrets directory exists"
+  ansible.builtin.file:
+    path: /home/ubuntu/inception/secrets
+    state: directory
+    owner: ubuntu
+    group: ubuntu
+    mode: '0700'
+  when: not ansible_check_mode
+
+- name: "Set database secrets"
+  ansible.builtin.copy:
+    content: "{{ item.value }}"
+    dest: "/home/ubuntu/inception/secrets/{{ item.name }}"
+    owner: ubuntu
+    group: ubuntu
+    mode: '0600'
+  loop:
+    - { name: "root_pass", value: "{{ root_pass }}" }
+    - { name: "user_pass", value: "{{ user_pass }}" }
+  no_log: true
+  when: not ansible_check_mode
+
+- name: "Create self-signed TLS certificate"
+  ansible.builtin.command:
+    argv:
+      - openssl
+      - req
+      - -x509
+      - -nodes
+      - -days
+      - "365"
+      - -newkey
+      - rsa:2048
+      - -keyout
+      - /home/ubuntu/inception/secrets/ssl.key
+      - -out
+      - /home/ubuntu/inception/secrets/ssl.crt
+      - -subj
+      - "/CN={{ ansible_host | default(inventory_hostname) }}"
+  args:
+    creates: /home/ubuntu/inception/secrets/ssl.crt
+  when: not ansible_check_mode
+
+- name: "Set TLS secret ownership"
+  ansible.builtin.file:
+    path: "/home/ubuntu/inception/secrets/{{ item }}"
+    owner: ubuntu
+    group: ubuntu
+    mode: '0600'
+  loop:
+    - ssl.key
+    - ssl.crt
+  when: not ansible_check_mode
+
+- name: "Ensure nginx conf directory exists on server"
+  ansible.builtin.file:
+    path: "/home/ubuntu/inception/services/nginx/conf"
+    state: directory
+    mode: '0755'
+    owner: ubuntu
+    group: ubuntu
+  when: not ansible_check_mode
+
+- name: "Set server_name in nginx.conf to worker IP"
+  ansible.builtin.template:
+    src: "{{ role_path }}/templates/nginx.conf.j2"
+    dest: "/home/ubuntu/inception/services/nginx/conf/nginx.conf"
+    owner: ubuntu
+    group: ubuntu
+    mode: '0644'
+  when: not ansible_check_mode
+
+
+
+- name: "Find all scripts in inception folder"
+  ansible.builtin.find:
+    paths: "/home/ubuntu/inception/"
+    patterns: "*.sh"
+    file_type: file
+    recurse: yes
+  register: scripts_found
+  when: not ansible_check_mode
+
+- name: "Ensure scripts are executable"
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    mode: '0755'
+  loop: "{{ scripts_found.files | default([]) }}"
+  when: not ansible_check_mode
+
+- name: "Start inception stack"
+  ansible.builtin.command:
+    cmd: make
+    chdir: /home/ubuntu/inception
+  become: true
+  when: not ansible_check_mode
+
+
+
+- name: "Ensure UFW is installed"
+  become: true
+  ansible.builtin.apt:
+    name: ufw
+    state: present
+    update_cache: yes
+  when: not ansible_check_mode
+
+- name: "Enable UFW"
+  become: true
+  community.general.ufw:
+    state: enabled
+    policy: deny
+  when: not ansible_check_mode
+
+- name: "Allow SSH through UFW"
+  become: true
+  community.general.ufw:
+    rule: allow
+    name: OpenSSH
+  when: not ansible_check_mode
+
+- name: "Allow HTTPS through UFW"
+  become: true
+  community.general.ufw:
+    rule: allow
+    port: "443"
+    proto: tcp
+  when: not ansible_check_mode

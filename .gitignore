@@ -1,0 +1,49 @@
+# macOS
+.DS_Store
+
+# Editor / IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Logs and temporary files
+*.log
+tmp/
+temp/
+_tmp_/
+
+# Local environment files
+.env
+.env.*
+!.env.example
+cac/group_vars/secrets.yml
+
+# Python / Ansible runtime cache
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Terraform runtime files
+**/.terraform/
+**/.terraform.tfstate.lock.info
+**/crash.log
+**/crash.*.log
+**/terraform.tfstate
+**/terraform.tfstate.*
+**/*.tfvars
+**/*.tfvars.json
+!**/*.tfvars.example
+**/override.tf
+**/override.tf.json
+**/*_override.tf
+**/*_override.tf.json
+
+# Secrets and keys
+*.pem
+*.key
+id_rsa
+id_ed25519

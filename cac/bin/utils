@@ -1,0 +1,33 @@
+get_sudo() {
+  if [ "$(id -u)" -eq 0 ]; then
+    echo ""
+  else
+    echo "sudo"
+  fi
+}
+
+install_pkgs() {
+  local CMD="$1"
+  shift
+
+  for pkg in "$@"; do
+    echo "Installing $pkg..."
+    bash -c "$CMD $pkg"
+  done
+}
+
+detect_os() {
+  local OS=""
+  if [ -f /etc/os-release ]; then
+    . /etc/os-release
+    case "$ID" in
+    arch) OS="arch" ;;
+    ubuntu) OS="ubuntu" ;;
+    debian) OS="debian" ;;
+    *) OS="unsupported" ;;
+    esac
+  else
+    OS="unknown"
+  fi
+  echo "$OS"
+}
