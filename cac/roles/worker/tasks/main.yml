@@ -12,9 +12,6 @@
     state: present
     update_cache: yes
 
-
-
-
 - name: "Ensure docker group exists"
   become: true
   ansible.builtin.group:
@@ -143,8 +140,6 @@
     mode: '0644'
   when: not ansible_check_mode
 
-
-
 - name: "Find all scripts in inception folder"
   ansible.builtin.find:
     paths: "/home/ubuntu/inception/"
@@ -167,8 +162,6 @@
     chdir: /home/ubuntu/inception
   become: true
   when: not ansible_check_mode
-
-
 
 - name: "Ensure UFW is installed"
   become: true
