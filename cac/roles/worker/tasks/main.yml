@@ -46,6 +46,13 @@
     group: ubuntu
   loop:
     - "/home/ubuntu/inception/"
+    - "/home/ubuntu/data/"
+    - "/home/ubuntu/data/mariadb/"
+    - "/home/ubuntu/data/wordpress/"
+    - "/home/ubuntu/data/nginx/"
+    - "/home/ubuntu/data/nginx/conf.d/"
+    - "/home/ubuntu/data/nginx/log/"
+    - "/home/ubuntu/data/phpmyadmin/"
   when: not ansible_check_mode
 
 - name: "Copy inception files"
@@ -161,6 +168,9 @@
     cmd: make
     chdir: /home/ubuntu/inception
   become: true
+  become_user: ubuntu
+  environment:
+    HOME: /home/ubuntu
   when: not ansible_check_mode
 
 - name: "Ensure UFW is installed"
@@ -169,13 +179,6 @@
     name: ufw
     state: present
     update_cache: yes
-  when: not ansible_check_mode
-
-- name: "Enable UFW"
-  become: true
-  community.general.ufw:
-    state: enabled
-    policy: deny
   when: not ansible_check_mode
 
 - name: "Allow SSH through UFW"
@@ -191,4 +194,19 @@
     rule: allow
     port: "443"
     proto: tcp
+  when: not ansible_check_mode
+
+- name: "Allow HTTP redirect through UFW"
+  become: true
+  community.general.ufw:
+    rule: allow
+    port: "80"
+    proto: tcp
+  when: not ansible_check_mode
+
+- name: "Enable UFW"
+  become: true
+  community.general.ufw:
+    state: enabled
+    policy: deny
   when: not ansible_check_mode
